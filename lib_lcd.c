@@ -2,7 +2,7 @@
  * lib_lcd.c
  *
  *  Created on: janvier 2020
- *      Author:
+ *      Author: kacemi
  */
 
 #include <lib_lcd.h>
