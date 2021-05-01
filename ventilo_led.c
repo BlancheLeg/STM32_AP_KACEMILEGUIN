@@ -13,7 +13,7 @@ PwmOut pwm2(D10);  // intensité led
     // on commence par le premier moteur seulement, en marche avant, vitesse lente (10%)
     int ventiloOnOff(int verifventil)
     {
-      if (verifventil=0)//ventilateur éteint
+      if (verifventil==0)//ventilateur éteint
           {
               pwm1.write(1.00f);  //pleine puissance
               moteur1a = 0;
@@ -25,11 +25,12 @@ PwmOut pwm2(D10);  // intensité led
            else//ventilateur allumé
           {
                  moteur1b = 0;
+                  return(!verifventil);
           }
     }
     int ledOnOff(int verifventil)
     {
-      if (verifled=0)//led éteintes
+      if (verifled==0)//led éteintes
           {
           pwm2.write(1.00f);  //luminosité max
           moteur2a = 0;
@@ -39,6 +40,22 @@ PwmOut pwm2(D10);  // intensité led
            else//ventilateur allumé
           {
                  moteur1b = 0;
+             return(!verifled);
+          }
+    }
+int ventilinit(int verifventil)
+    {
+      if (verifventil==1)//ventilateur allumé
+      {
+             moteur1b = 0;
+             return(!verifventil);
+          }
+    }
+    int ledinit(int verifled)
+    {
+      if (verifled==1)//led éteintes
+          {
+             moteur1b = 0;
              return(!verifled);
           }
     }
