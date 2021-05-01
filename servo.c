@@ -24,8 +24,19 @@ int servoOnOff(int verif)
         for(int i=positionMax; i>positionMin; i -= 10) 
         {
             servo.pulsewidth_us(i);
-        }
-        wait(3);  
+        } 
         return verif=0;//indication porte fermé
     }
 }
+int servoinit(int verif)
+    {
+        if(verif==1)//porte ouverte
+        {
+
+        for(int i=positionMax; i>positionMin; i -= 10) 
+        {
+            servo.pulsewidth_us(i);
+        }
+        return verif=0;//indication porte fermé
+        }
+    }
