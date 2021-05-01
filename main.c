@@ -19,22 +19,22 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "mbed.h"
 #include "i2c.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "lib_lcd.h"
-#include <stdlib.h>
-#include "fonction_DHT22.h"
-#include "timer.h"
+#include "ventilo_led.c"
+#include "servo.c"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <string.h>
-#include <stdio.h>
+#include "lib_lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+static rgb_lcd lcdData;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -49,20 +49,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static rgb_lcd lcdData;
 
-uint16_t RH = 0, TEMP = 0;
-
-uint8_t dataH1;
-uint8_t dataH2;
-uint8_t dataT1;
-uint8_t dataT2;
-uint8_t SUM;
-uint8_t check;
-GPIO_PinState state;
-int count = 0, test = 0, test1 = 0;
-int testO = 0;
-int testI = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,10 +70,20 @@ void SystemClock_Config(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-char buf[50];
-char buf1[50];
-float partieEntiere, partieDecimal,partieEntiere1, partieDecimal1;
-int k = 0;
+        HAL_StatusTypeDef ret;
+        // saves return variable to handle errors aproppiately
+        uint16_t ST, SRH;
+        //values to store raw temperature and humidity
+        static const uint8_t SHT31_ADDRS = 0x44 << 1,
+                LCD_ADDRS = 0x7c,
+                RGB_ADDRS = 0xc4;
+        uint16_t SHT31_MEAS_HIGHREP = 0x062c;
+        uint8_t com;
+        float humidity;
+        int position;
+        int verif_servo, verif_led, verif_ventil; 
+
+        uint8_t buf[12], serial_text[12], serial_hum[12];//general use buffer
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -109,91 +106,130 @@ int k = 0;
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
+  MX_I2C2_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+
   lcd_init(&hi2c1, &lcdData); // initialise le lcd
-  lcd_position(&hi2c1,0,0);
-  reglagecouleur(0,0,255);
+  lcd_position(&hi2c1,0,0);//cositas
+  lcd_print(&hi2c1,"Starting");
+  int i, delay=100;
+  HAL_Delay(delay);
+
   /* USER CODE END 2 */
-  DWT_Delay_Init();
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+        ret = HAL_I2C_Master_Transmit(
+                &hi2c1,
+                SHT31_ADDRS,
+                &SHT31_MEAS_HIGHREP,
+                2,
+                HAL_MAX_DELAY);
+
+        if(ret != HAL_OK)
+        {
+            strcpy((char*)serial_text, "Error Tx\r\n");
+        }
+         else 
+        {
+            ret = HAL_I2C_Master_Receive(&hi2c1, SHT31_ADDRS, &buf, 2, HAL_MAX_DELAY);
+            if( ret != HAL_OK){strcpy((char*)buf, "Error Tx2\r\n");}
+            else 
+            {
+                ST = buf[0];
+                ST <<= 8;
+                ST |= buf[1];
+                double stemp = ST;
+                stemp = ST;
+                stemp *= 175;
+                stemp /= 0xffff;
+                stemp = -45 + stemp;
+                sprintf((char*)serial_text,"%u.%0.u",((unsigned int) stemp),(((unsigned int) stemp  % 100)*100));
+                humidity = (((buf[3] * 256) + buf[4])) * 1000.0 / 65535.0;
+                sprintf((char*)serial_hum,"%u.%0.u",((unsigned int) humidity),(((unsigned int) humidity  % 100)*100));
+            }
+        }
+
+        HAL_UART_Transmit(&huart2, serial_text, strlen((char*)serial_text), HAL_MAX_DELAY);
+        HAL_Delay(500);
     /* USER CODE END WHILE */
-	  HAL_Delay(3000);
-	  	  Data_Output(GPIOA, GPIO_PIN_1, &testO);
-	  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-	  	  DWT_Delay_us(1200);
-	  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-	  	  DWT_Delay_us(30);
-	  	  Data_Input(GPIOA, GPIO_PIN_1, &testI);
 
-	  	  //DWT_Delay_us(40);
-	  	  //state = HAL_GPIO_ReadPin (GPIOA, GPIO_PIN_1);
-	  	  while(!(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1)));
-	  	  //DWT_Delay_us(75);
-	  	  for (k=0;k<100;k++)
-	  	  {
-	  	  		  if (HAL_GPIO_ReadPin (GPIOA, GPIO_PIN_1) == GPIO_PIN_RESET)
-	  	  		  {
-	  	  			test = k;
-	  	  			break;
-	  	  		  }
-	  	  		  //DWT_Delay_us(1);
-	  	  }
-
-	  	  //state = HAL_GPIO_ReadPin (GPIOA, GPIO_PIN_1);
-
-	  	  /*
-	  	  if (HAL_GPIO_ReadPin (GPIOA, GPIO_PIN_1) == GPIO_PIN_RESET)
-	  	  {
-	  		  //test++;
-	  		  DWT_Delay_us(90);
-	  		  if (HAL_GPIO_ReadPin (GPIOA, GPIO_PIN_1) == GPIO_PIN_SET)
-	  		  {
-	  		  	test1++;
-	  		  }
-	  	  }
-	  */
-
-	  	  while(!(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1)));
-	  	  DWT_Delay_us(40);
-
-	  	  Read_data(&dataH1);
-	  	  Read_data(&dataH2);
-	  	  Read_data(&dataT1);
-	  	  Read_data(&dataT2);
-	  	  Read_data(&SUM);
-
-	  	  check = dataH1 + dataH2 + dataT1 + dataT2;
-
-	  	  RH = (dataH1<<8) | dataH2;
-	  	  TEMP = (dataT1<<8) | dataT2;
     /* USER CODE BEGIN 3 */
-	  //temperature = -45+175*((float)TEMP/65535);
-	  partieEntiere = TEMP/10 ;
-	  partieDecimal = ((TEMP%10)+48);
-	  //partieDecimal *= 100;
-	  //partieDecimal = partieDecimal - (partieDecimal*100);
+    clearlcd();
+          lcd_position(&hi2c1,0,0);
+          lcd_print(&hi2c1,"Temp:    Hum:");
+          lcd_position(&hi2c1,0,1);
+          lcd_print(&hi2c1, serial_text);
+          lcd_position(&hi2c1,5,1);
+          lcd_print(&hi2c1," C");
+          lcd_position(&hi2c1,9,1);
+          lcd_print(&hi2c1, serial_hum);
+          lcd_position(&hi2c1,13,1);
+          lcd_print(&hi2c1," %");
+          reglagecouleur(255,255,255);
+          lcd_position(&hi2c1,15,1);
+          lcd_print(&hi2c1," ");
+          HAL_Delay(500);
 
-
-	  partieEntiere1= RH/10 ;
-	  partieDecimal1 = ((RH%10)+48);
-	  sprintf((char*)buf,"%u.%u C", (unsigned int) partieEntiere,(unsigned int) partieDecimal);
-	  sprintf((char*)buf1,"%u.%u ", (unsigned int) partieEntiere1,(unsigned int) partieDecimal1);
-	  	  	  	lcd_position(&hi2c1,0,0);
-	  			lcd_print(&hi2c1,"Temp :  ");
-	  			lcd_position(&hi2c1,7,0);
-	  			lcd_print(&hi2c1,buf);
-	  			lcd_position(&hi2c1,0,1);
-	  			lcd_print(&hi2c1,"Hum  : ");
-	  			lcd_position(&hi2c1,7,1);
-	  			lcd_print(&hi2c1,buf1);
-	  			lcd_print(&hi2c1,"%");
-
-	  			HAL_Delay(1000);
-  }
-
+          htim2.Instance->CCR1 = 75;
+          verif_servo = servoinit(verif_servo);
+          verif_led = ledinit(verif_led);
+          verif_ventil = ventilinit(verif_ventil);
+          
+      if(serial_text > 23)//cas température trop élevé
+      {
+          if(verif_led==1)//on éteint les leds
+          {
+              verif_led = ledOnOff(verif_led);
+          }
+          if(verif_servo==0)// on ouvre le trappe
+          {
+              verif_servo = servoinit(verif_servo);
+          }
+          if(verif_ventil==0)//
+          {
+              verif_ventil = ventiloOnOff(verif_ventil);
+          }      
+      }
+      else 
+      {
+            if(serial_text < 24)//cas température trop faible
+            {
+                if(verif_led==0)
+              {
+                   verif_led = ledOnOff(verif_led);
+              }
+                if(verif_servo==1)
+              {
+              verif_servo = servoinit(verif_servo);
+             }
+             if(verif_ventil==1)
+             {
+              verif_led = ventiloOnOff(verif_ventil);
+              }    
+            }
+            else
+            {
+             if(verif_led==1)
+              {
+                   verif_led = ledOnOff(verif_led);
+              }
+                if(verif_led==1)
+              {
+              verif_servo = servoinit(verif_servo);
+             }
+             if(verif_ventil==1)
+             {
+              verif_ventil = ventiloOnOff(verif_ventil);
+              }  
+            }
+        }
+    }
   /* USER CODE END 3 */
 }
 
@@ -229,7 +265,7 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
